@@ -1,0 +1,45 @@
+appId: com.hikariatama.libmov
+productName: libmov
+asar: true
+artifactName: ${productName}-${version}-${os}-${arch}.${ext}
+directories:
+  output: release/default
+  buildResources: build
+files:
+  - dist/**/*
+  - dist-electron/**/*
+  - package.json
+extraResources:
+  - from: ../LICENSE
+    to: licenses/LICENSE
+  - from: ../third_party
+    to: licenses/third_party
+mac:
+  category: public.app-category.entertainment
+  darkModeSupport: true
+  icon: build/icon.icns
+  identity: null
+linux:
+  icon: build/icons
+  category: AudioVideo
+win:
+  icon: build/icon.ico
+dmg:
+  background: build/dmg-background.tiff
+  iconSize: 96
+  window:
+    width: 654
+    height: 422
+  contents:
+    - x: 199
+      y: 199
+      type: file
+    - x: 484
+      y: 199
+      type: link
+      path: /Applications
+publish:
+  provider: github
+  owner: hikariatama
+  repo: libmov
+  releaseType: draft

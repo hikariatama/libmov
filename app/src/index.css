@@ -1,0 +1,150 @@
+@import '@fontsource/geist-mono/400.css';
+@import '@fontsource/geist-mono/500.css';
+@import 'tailwindcss';
+@import "tw-animate-css";
+@import "./styles/shadcn.css";
+@import "@fontsource-variable/geist";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Geist Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'Geist Mono', ui-monospace, monospace;
+  --font-heading: var(--font-sans);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-foreground: var(--foreground);
+  --color-background: var(--background);
+  --color-faint: var(--faint);
+  --color-brand: var(--brand);
+  --color-watched: var(--watched);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+/* libmov is dark-only: the palette follows the app icon — ink black with the clapper red. */
+:root,
+.dark {
+  --background: #0a0a0a;
+  --foreground: #f2f1ef;
+  --card: #131313;
+  --card-foreground: #f2f1ef;
+  --popover: #141414;
+  --popover-foreground: #f2f1ef;
+  --primary: #e1262a;
+  --primary-foreground: #fff;
+  --secondary: #1c1c1c;
+  --secondary-foreground: #f2f1ef;
+  --muted: #1a1a1a;
+  --muted-foreground: #8d8c89;
+  --faint: #5a5957;
+  --accent: #1f1f1f;
+  --accent-foreground: #f2f1ef;
+  --destructive: #f05252;
+  --border: rgb(255 255 255 / 0.07);
+  --input: rgb(255 255 255 / 0.1);
+  --ring: rgb(225 38 42 / 0.7);
+  --brand: #da181b;
+  --watched: #f2f1ef;
+  --radius: 0.625rem;
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  min-width: 960px;
+  overflow: hidden;
+  font-feature-settings: 'ss01', 'cv11';
+  letter-spacing: -0.011em;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+img {
+  display: block;
+}
+
+::selection {
+  background: rgb(225 38 42 / 0.35);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 0.1);
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(255 255 255 / 0.18);
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.app-drag {
+  -webkit-app-region: drag;
+}
+
+.app-no-drag {
+  -webkit-app-region: no-drag;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(90deg, rgb(255 255 255 / 0.03) 25%, rgb(255 255 255 / 0.07) 50%, rgb(255 255 255 / 0.03) 75%);
+  background-size: 200% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+  button:not(:disabled), [role="button"]:not(:disabled) {
+    cursor: default;
+  }
+}

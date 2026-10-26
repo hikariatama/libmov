@@ -1,0 +1,190 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  secrets:
+    name: Secrets
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install checksum-pinned Gitleaks
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/gitleaks_8.30.1_linux_x64.tar.gz \
+            --output "$RUNNER_TEMP/gitleaks.tar.gz"
+          printf '%s  %s\n' \
+            551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb \
+            "$RUNNER_TEMP/gitleaks.tar.gz" | sha256sum --check -
+          tar -xzf "$RUNNER_TEMP/gitleaks.tar.gz" -C "$RUNNER_TEMP" gitleaks
+      - name: Scan complete Git history
+        run: '"$RUNNER_TEMP/gitleaks" git . --redact --no-banner --log-opts="--all"'
+      - name: Test draft release lifecycle
+        run: python3 -m unittest discover -s scripts -p 'test_publish_draft.py'
+
+  check:
+    name: Checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: 24
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+        with:
+          bun-version: 1.4.2
+      - name: Install dependencies
+        run: bun install --frozen-lockfile --ignore-scripts
+      - name: Audit dependencies
+        run: bun audit --audit-level=high
+      - name: Check types and lint
+        run: bun run check
+      - name: Build renderer and main process
+        run: bun run build
+      - name: Check source tree
+        run: git diff --exit-code
+
+  build:
+    name: Build · ${{ matrix.platform }} ${{ matrix.arch }}
+    needs: [check, secrets]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            platform: mac
+            arch: arm64
+            targets: app dmg
+          - runner: macos-15-intel
+            platform: mac
+            arch: x64
+            targets: app dmg
+          - runner: ubuntu-24.04
+            platform: linux
+            arch: x64
+            targets: appimage deb rpm binary
+          - runner: ubuntu-24.04-arm
+            platform: linux
+            arch: arm64
+            targets: appimage deb rpm binary
+          - runner: windows-latest
+            platform: win
+            arch: x64
+            targets: exe exe-setup msi
+          - runner: windows-11-arm
+            platform: win
+            arch: arm64
+            targets: exe exe-setup msi
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+      BUILD_PLATFORM: ${{ matrix.platform }}
+      BUILD_ARCH: ${{ matrix.arch }}
+      BUILD_TARGETS: ${{ matrix.targets }}
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: 24
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6
+        with:
+          bun-version: 1.4.2
+      - name: Install Linux packaging tools
+        if: matrix.platform == 'linux'
+        run: sudo apt-get update && sudo apt-get install -y fakeroot rpm
+      - name: Install dependencies
+        working-directory: app
+        run: bun install --frozen-lockfile
+      - name: Build native packages
+        working-directory: app
+        run: |
+          for target in $BUILD_TARGETS; do
+            bun run package --platform="$BUILD_PLATFORM" --arch="$BUILD_ARCH" --target="$target" --publish=never
+          done
+      - name: Collect distributions
+        run: |
+          python3 - <<'PYCOLLECT'
+          import os, pathlib, shutil
+          target = pathlib.Path(os.environ['RUNNER_TEMP'], 'distribution')
+          target.mkdir()
+          for path in pathlib.Path('app/release').glob('*/*/*/*'):
+              if path.is_file() and path.name.endswith(('.dmg', '.zip', '.AppImage', '.deb', '.rpm', '.tar.gz', '.exe', '.msi')):
+                  destination = target / path.name
+                  if destination.exists():
+                      raise RuntimeError('Duplicate package: ' + path.name)
+                  shutil.copy2(path, destination)
+          PYCOLLECT
+      - name: Check source tree
+        run: git diff --exit-code
+      - name: Upload distribution
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: libmov-${{ matrix.platform }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/distribution/*
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+          overwrite: true
+
+  release:
+    name: Draft release
+    needs: [build]
+    if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      actions: read
+    concurrency:
+      group: draft-release
+      cancel-in-progress: false
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Download verified distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: artifacts
+          merge-multiple: true
+      - name: Replace version draft and its assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 scripts/publish-draft.py artifacts

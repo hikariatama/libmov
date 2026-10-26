@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="dark" />
+    <title>libmov</title>
+    <meta name="description" content="Offline watch status tracker for movies and series." />
+    <link rel="icon" type="image/png" href="favicon.png?v=ios-20261026" />
+    <link rel="apple-touch-icon" href="icon.png?v=ios-20261026" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+    />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="site.css" />
+  </head>
+  <body class="site-body">
+    <main class="page site-page">
+      <header class="header site-header">
+        <img class="icon site-icon" src="icon.png?v=ios-20261026" alt="" width="44" height="44" />
+        <div class="title site-title">
+          <h1><img src="logo.svg" alt="libmov" width="90" height="22" /></h1>
+          <p>Offline watch status tracker for movies and series.</p>
+        </div>
+        <nav class="actions site-actions">
+          <a class="site-button primary" id="download" href="https://github.com/hikariatama/libmov/releases/latest">Download</a>
+          <a class="site-button" href="https://github.com/hikariatama/libmov/releases/latest">All platforms</a>
+          <a class="site-button" href="https://github.com/hikariatama/libmov">GitHub</a>
+        </nav>
+      </header>
+
+      <section class="stage site-stage" aria-label="libmov demo">
+        <!-- Mirrors app/src/components: top-bar, library-view + poster-grid, command-palette, detail-page, toaster. -->
+        <div class="window site-demo" id="window" aria-hidden="true">
+          <div class="lights"><i></i><i></i><i></i></div>
+
+          <header class="top-bar">
+            <img class="logo" src="logo.svg" alt="" width="62" height="15" />
+            <nav class="tabs" id="tabs">
+              <span class="tab" data-tab="watchlist"><span>Watchlist</span> <span class="count" id="watchlist-tab-count"></span></span>
+              <span class="tab" data-tab="watched"><span>Watched</span> <span class="count" id="watched-tab-count"></span></span>
+              <span class="tab" data-tab="discover"><span>Discover</span></span>
+            </nav>
+            <span class="search-trigger" id="search-trigger">
+              <svg viewBox="0 0 24 24"><path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></svg>
+              <span class="label">Search titles</span>
+              <span class="keys"><kbd>⌘</kbd><kbd>K</kbd></span>
+            </span>
+          </header>
+
+          <div class="main">
+            <div class="view library" id="library">
+              <header class="view-head">
+                <div>
+                  <div class="view-title"><span id="library-title"></span> <span class="count" id="library-count"></span></div>
+                  <p id="library-subtitle"></p>
+                </div>
+                <span class="ghost-button" id="library-import">Import</span>
+              </header>
+              <div class="grid" id="grid"></div>
+            </div>
+
+            <div class="view detail hidden" id="detail">
+              <div class="backdrop"><img id="detail-backdrop" alt="" /></div>
+              <div class="detail-inner" id="detail-inner">
+                <span class="back">
+                  <svg viewBox="0 0 24 24"><path d="M5 12l14 0" /><path d="M5 12l6 6" /><path d="M5 12l6 -6" /></svg>
+                  Back <span class="keys"><kbd>esc</kbd></span>
+                </span>
+                <section class="hero">
+                  <div class="detail-poster"><img id="detail-poster" alt="" /></div>
+                  <div class="hero-info">
+                    <div class="meta" id="detail-meta"></div>
+                    <h2 id="detail-title"></h2>
+                    <p class="genres" id="detail-genres"></p>
+                    <div class="detail-actions">
+                      <span class="action" id="detail-watchlist"></span>
+                      <span class="action" id="detail-watched"></span>
+                    </div>
+                  </div>
+                </section>
+                <div class="detail-body">
+                  <div>
+                    <p class="overview" id="detail-overview"></p>
+                    <h3>Cast</h3>
+                    <div class="cast" id="detail-cast"></div>
+                  </div>
+                  <aside>
+                    <h3>Details</h3>
+                    <dl class="facts" id="detail-facts"></dl>
+                  </aside>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="overlay" id="palette">
+            <div class="palette">
+              <label class="palette-input">
+                <svg viewBox="0 0 24 24"><path d="M10 10m-7 0a7 7 0 1 0 14 0a7 7 0 1 0 -14 0" /><path d="M21 21l-6 -6" /></svg>
+                <span class="query" id="query"></span><span class="placeholder" id="placeholder">Search movies and series</span>
+                <span class="keys"><kbd>esc</kbd></span>
+              </label>
+              <div class="palette-empty" id="palette-empty">Search the TheTVDB catalog by title.</div>
+              <div class="palette-body" id="palette-body">
+                <div class="results" id="results"></div>
+                <aside class="preview" id="preview"></aside>
+              </div>
+              <footer class="palette-foot">
+                <span data-hint="move"><span class="keys"><kbd>↑</kbd><kbd>↓</kbd></span> Navigate</span>
+                <span data-hint="open"><span class="keys"><kbd>↵</kbd></span> Open</span>
+                <span data-hint="later"><span class="keys"><kbd>⌘</kbd><kbd>L</kbd></span> Watchlist</span>
+                <span data-hint="watched"><span class="keys"><kbd>⌘</kbd><kbd>D</kbd></span> Watched</span>
+                <span class="total" id="results-count"></span>
+              </footer>
+            </div>
+          </div>
+
+          <div class="toaster"><div class="toast" id="toast"><i></i><span id="toast-text"></span></div></div>
+          <div class="keystroke" id="keystroke"></div>
+        </div>
+      </section>
+
+      <footer class="footer site-footer">
+        <a class="avx" href="https://avx.so"><img src="avx.svg" alt="avx.so" width="67" height="13" /></a>
+        <span>
+          <a href="https://github.com/hikariatama/libmov/blob/main/LICENSE">AGPL-3.0</a>
+          · Catalog data from <a href="https://thetvdb.com">TheTVDB</a>
+        </span>
+      </footer>
+    </main>
+    <script src="main.js"></script>
+  </body>
+</html>

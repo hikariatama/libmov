@@ -1,0 +1,74 @@
+[
+  {
+    "name": "libmov-mac-arm64.dmg",
+    "platform": "macOS \u00b7 Apple Silicon"
+  },
+  {
+    "name": "libmov-mac-arm64.zip",
+    "platform": "macOS \u00b7 Apple Silicon"
+  },
+  {
+    "name": "libmov-mac-x64.dmg",
+    "platform": "macOS \u00b7 Intel"
+  },
+  {
+    "name": "libmov-mac-x64.zip",
+    "platform": "macOS \u00b7 Intel"
+  },
+  {
+    "name": "libmov-win-x64-setup.exe",
+    "platform": "Windows \u00b7 x64"
+  },
+  {
+    "name": "libmov-win-x64.exe",
+    "platform": "Windows \u00b7 x64"
+  },
+  {
+    "name": "libmov-win-x64.msi",
+    "platform": "Windows \u00b7 x64"
+  },
+  {
+    "name": "libmov-win-arm64-setup.exe",
+    "platform": "Windows \u00b7 ARM64"
+  },
+  {
+    "name": "libmov-win-arm64.exe",
+    "platform": "Windows \u00b7 ARM64"
+  },
+  {
+    "name": "libmov-win-arm64.msi",
+    "platform": "Windows \u00b7 ARM64"
+  },
+  {
+    "name": "libmov-linux-x86_64.AppImage",
+    "platform": "Linux \u00b7 x64"
+  },
+  {
+    "name": "libmov-linux-x86_64.deb",
+    "platform": "Linux \u00b7 x64"
+  },
+  {
+    "name": "libmov-linux-x86_64.rpm",
+    "platform": "Linux \u00b7 x64"
+  },
+  {
+    "name": "libmov-linux-x86_64.tar.gz",
+    "platform": "Linux \u00b7 x64"
+  },
+  {
+    "name": "libmov-linux-arm64.AppImage",
+    "platform": "Linux \u00b7 ARM64"
+  },
+  {
+    "name": "libmov-linux-arm64.deb",
+    "platform": "Linux \u00b7 ARM64"
+  },
+  {
+    "name": "libmov-linux-arm64.rpm",
+    "platform": "Linux \u00b7 ARM64"
+  },
+  {
+    "name": "libmov-linux-arm64.tar.gz",
+    "platform": "Linux \u00b7 ARM64"
+  }
+]
