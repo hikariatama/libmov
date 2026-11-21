@@ -1,6 +1,7 @@
 import { ipcMain } from 'electron'
+import { resolveImport, validateImport } from './import-watched'
 import { ipcChannels, type ConfigureCatalogResult } from '../shared/ipc'
-import type { AppBootstrap, MediaSummary, SetWatchedByTvdbIdsRequest } from '../shared/media'
+import type { AppBootstrap, SetWatchedByTvdbIdsRequest } from '../shared/media'
 import { CatalogCredentialsStore } from './catalog-credentials'
 import { LibraryDatabase } from './database'
 import { TvdbClient } from './tvdb'
@@ -12,6 +13,7 @@ function toPlainJson<T>(value: T): T {
 export function registerIpcHandlers(database: LibraryDatabase, initialClient: TvdbClient, credentials: CatalogCredentialsStore): void {
   let tvdb = initialClient
   let configuring = false
+  let importing = false
 
   ipcMain.handle(ipcChannels.configureCatalog, async (_event, request: unknown): Promise<ConfigureCatalogResult> => {
     if (_event.senderFrame !== _event.sender.mainFrame) return { ok: false, error: 'Open setup in the main app window.' }
@@ -73,28 +75,20 @@ export function registerIpcHandlers(database: LibraryDatabase, initialClient: Tv
   )
 
   ipcMain.handle(ipcChannels.setWatchedByTvdbIds, async (_event, request: SetWatchedByTvdbIdsRequest) => {
-    const resolved = await Promise.all(
-      request.mediaItems.map(
-        async (item): Promise<{ inputId: string; media: MediaSummary } | null> => {
-          try {
-            return {
-              inputId: item.mediaId,
-              media: await tvdb.getMediaByTvdbId(item.mediaId, item.mediaType, item.title),
-            }
-          } catch {
-            return null
-          }
-        },
-      ),
-    )
-    const importedItems = resolved.filter((item): item is { inputId: string; media: MediaSummary } => item !== null)
-    const importedIds = new Set(importedItems.map((item) => item.inputId))
-
-    return toPlainJson({
-      importedIds: [...importedIds],
-      library: database.setWatchedMany(importedItems.map((item) => item.media)),
-      skippedIds: request.mediaItems.map((item) => item.mediaId).filter((mediaId: string) => !importedIds.has(mediaId)),
-    })
+    if (importing) throw new Error('An import is already in progress.')
+    const items = validateImport(request)
+    importing = true
+    const client = tvdb
+    try {
+      const result = await resolveImport(items, (item) => client.getMediaByTvdbId(item.mediaId, item.mediaType, item.title))
+      return toPlainJson({
+        importedIds: result.importedIds,
+        skippedIds: result.skippedIds,
+        library: database.setWatchedMany(result.imported),
+      })
+    } finally {
+      importing = false
+    }
   })
 
   ipcMain.handle(ipcChannels.setWatched, async (_event, request) =>

@@ -81,24 +81,37 @@ def publish(github, version, sha, files, *, ref='refs/heads/main', notes=''):
     elif ref != 'refs/tags/' + tag:
         raise ValueError('Releases can only be built from main or their matching version tag')
     existing = next((r for r in github.pages('/releases') if r['tag_name'] == tag), None)
-    draft = existing['draft'] if existing else True
+    if existing and existing.get('draft') is not True:
+        raise RuntimeError('Published releases cannot be rebuilt')
+    draft = True
 
-    reference = '/git/refs/tags/' + tag
     tag_ref = github.request('GET', '/git/ref/tags/' + tag)
     if tag_ref:
-        github.request('PATCH', reference, {'sha': sha, 'force': True})
+        target = tag_ref['object']
+        seen = set()
+        while target.get('type') == 'tag':
+            if target['sha'] in seen:
+                raise RuntimeError('Invalid annotated tag chain')
+            seen.add(target['sha'])
+            tag_object = github.request('GET', '/git/tags/' + target['sha'])
+            if not tag_object:
+                raise RuntimeError('Cannot resolve release tag')
+            target = tag_object['object']
+        if target.get('sha') != sha or target.get('type') != 'commit':
+            raise RuntimeError('Release tag points to a different commit')
     else:
         github.request('POST', '/git/refs', {'ref': 'refs/tags/' + tag, 'sha': sha})
     payload = {'tag_name': tag, 'target_commitish': sha, 'name': github.repository.rsplit('/', 1)[-1] + ' ' + tag, 'draft': draft, 'prerelease': False,
                'body': notes.strip()}
     if existing:
         release = github.request('PATCH', '/releases/' + str(existing['id']), payload)
-        for asset in github.pages('/releases/' + str(existing['id']) + '/assets'):
-            github.request('DELETE', '/releases/assets/' + str(asset['id']))
     else:
         release = github.request('POST', '/releases', payload)
     if not release or release.get('draft') != draft:
         raise RuntimeError('GitHub changed the release publication state')
+    if existing:
+        for asset in github.pages('/releases/' + str(existing['id']) + '/assets'):
+            github.request('DELETE', '/releases/assets/' + str(asset['id']))
     uploaded = []
     for name, path in sorted(files.items()):
         url = release['upload_url'].split('{', 1)[0] + '?name=' + urllib.parse.quote(name)

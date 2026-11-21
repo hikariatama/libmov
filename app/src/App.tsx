@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { HotkeysProvider, useHotkeys } from '@tanstack/react-hotkeys'
 import { AnimatePresence, motion } from 'framer-motion'
 import { CatalogSetup } from './components/catalog-setup'
@@ -15,6 +15,8 @@ const pageTransition = { damping: 36, mass: 0.8, stiffness: 380, type: 'spring' 
 function App() {
   const initialize = useAppStore((state) => state.initialize)
   const initialized = useAppStore((state) => state.initialized)
+  const [localMode, setLocalMode] = useState(false)
+  const [setupOpen, setSetupOpen] = useState(false)
   const searchConfigured = useAppStore((state) => state.searchConfigured)
 
   useEffect(() => {
@@ -25,17 +27,21 @@ function App() {
   return (
     <HotkeysProvider defaultOptions={{ hotkey: { preventDefault: true, stopPropagation: true } }}>
       <TooltipProvider delayDuration={400}>
-        {initialized && searchConfigured ? (
+        {initialized && (searchConfigured || localMode) && !setupOpen ? (
           <>
             <div className="flex h-screen flex-col bg-background text-foreground">
               <TopBar />
+              {!searchConfigured ? <div className="flex items-center justify-between gap-4 border-b border-white/[0.05] px-6 py-2 text-[13px] text-muted-foreground" role="status">
+                <span>Local library. Connect to TheTVDB to search, discover and import titles.</span>
+                <button className="rounded-sm text-foreground underline underline-offset-4 focus-visible:outline-2 focus-visible:outline-ring" onClick={() => setSetupOpen(true)} type="button">Connect catalog</button>
+              </div> : null}
               <Surface />
             </div>
             <CommandPalette />
             <Toaster />
           </>
         ) : (
-          <CatalogSetup loading={!initialized} />
+          <CatalogSetup loading={!initialized} onLocalLibrary={() => { setLocalMode(true); setSetupOpen(false) }} onConnected={() => setSetupOpen(false)} />
         )}
       </TooltipProvider>
     </HotkeysProvider>

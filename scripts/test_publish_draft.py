@@ -24,7 +24,9 @@ class FakeGitHub:
 
     def request(self, method, path, data=None, *, upload=None):
         if method == 'GET':
-            return {'object': {'sha': self.sha}}
+            if path.startswith('/git/ref/tags/') and not self.existing:
+                return None
+            return {'object': {'sha': self.sha, 'type': 'commit'}}
         self.mutations.append((method, path, data))
         if method == 'DELETE':
             self.assets = []
@@ -46,7 +48,7 @@ class DraftReleaseTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 release.collect_artifacts(Path(root), ['missing.zip'])
 
-    def test_draft_rebuild_retargets_tag_and_replaces_all_assets(self):
+    def test_draft_rebuild_preserves_tag_and_replaces_all_assets(self):
         github = FakeGitHub()
         with tempfile.TemporaryDirectory() as root:
             package = Path(root) / 'app.zip'
@@ -58,7 +60,7 @@ class DraftReleaseTests(unittest.TestCase):
         self.assertEqual(draft['name'], 'libmov v0.0.1')
         self.assertEqual(draft['body'], notes)
         self.assertEqual({a['name'] for a in github.assets}, {'app.zip', 'SHA256SUMS.txt'})
-        self.assertIn(('PATCH', '/git/refs/tags/v0.0.1', {'sha': SHA, 'force': True}), github.mutations)
+        self.assertFalse(any(path.startswith('/git/') for _, path, _ in github.mutations))
         self.assertTrue(any(method == 'DELETE' for method, _, _ in github.mutations))
 
     def test_first_release_starts_as_draft(self):
@@ -72,18 +74,38 @@ class DraftReleaseTests(unittest.TestCase):
         self.assertTrue(any(method == 'POST' and path == '/releases' for method, path, _ in github.mutations))
         self.assertFalse(any(method == 'DELETE' for method, _, _ in github.mutations))
 
-    def test_published_rebuild_replaces_assets_without_unpublishing(self):
+    def test_published_rebuild_is_rejected_before_mutations(self):
         github = FakeGitHub(draft=False)
-        with tempfile.TemporaryDirectory() as root:
-            package = Path(root) / 'app.zip'
-            package.write_bytes(b'rebuilt package')
-            files = release.collect_artifacts(Path(root), ['app.zip'])
-            current, uploaded = release.publish(github, '0.0.1', SHA, files)
-        self.assertFalse(current['draft'])
-        self.assertEqual(current['id'], 1)
-        self.assertEqual({a['name'] for a in github.assets}, {'app.zip', 'SHA256SUMS.txt'})
-        self.assertEqual(len(uploaded), 2)
-        self.assertIn(('PATCH', '/git/refs/tags/v0.0.1', {'sha': SHA, 'force': True}), github.mutations)
+        with self.assertRaises(RuntimeError):
+            release.publish(github, '0.0.1', SHA, {})
+        self.assertEqual(github.mutations, [])
+
+    def test_mismatched_tag_is_rejected_before_mutations(self):
+        github = FakeGitHub()
+        original = github.request
+        github.request = lambda method, path, *args, **kwargs: ({'object': {'sha': 'b' * 40}}
+            if path.startswith('/git/ref/tags/') else original(method, path, *args, **kwargs))
+        with self.assertRaises(RuntimeError):
+            release.publish(github, '0.0.1', SHA, {})
+        self.assertEqual(github.mutations, [])
+
+    def test_matching_annotated_tag_is_preserved(self):
+        github = FakeGitHub()
+        original = github.request
+        def request(method, path, *args, **kwargs):
+            if path.startswith('/git/ref/tags/'):
+                return {'object': {'sha': 'c' * 40, 'type': 'tag'}}
+            if path.startswith('/git/tags/'):
+                return {'object': {'sha': SHA, 'type': 'commit'}}
+            return original(method, path, *args, **kwargs)
+        github.request = request
+        release.publish(github, '0.0.1', SHA, {}, ref='refs/tags/v0.0.1')
+        self.assertFalse(any(path.startswith('/git/') for _, path, _ in github.mutations))
+
+    def test_new_release_creates_tag_without_force(self):
+        github = FakeGitHub(existing=False)
+        release.publish(github, '0.0.1', SHA, {})
+        self.assertIn(('POST', '/git/refs', {'ref': 'refs/tags/v0.0.1', 'sha': SHA}), github.mutations)
 
     def test_stale_build_cannot_replace_current_draft(self):
         github = FakeGitHub(sha='b' * 40)

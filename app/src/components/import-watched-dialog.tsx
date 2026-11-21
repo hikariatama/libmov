@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { maxImportItems } from '../../shared/import-limits'
 import type { MediaType, SetWatchedByTvdbIdImport, SetWatchedByTvdbIdsResponse } from '../../shared/media'
 import { IconUpload } from '@tabler/icons-react'
 import { Button } from './ui/button'
@@ -18,6 +19,9 @@ type ImportStatus = 'error' | 'idle' | 'importing' | 'ready'
 
 export function ImportWatchedDialog() {
   const setWatchedByTvdbIds = useAppStore((state) => state.setWatchedByTvdbIds)
+  const pending = useAppStore((state) => state.importPending)
+  const operation = useRef(0)
+  useEffect(() => () => { operation.current += 1 }, [])
   const [open, setOpen] = useState(false)
   const [draft, setDraft] = useState('')
   const [status, setStatus] = useState<ImportStatus>('idle')
@@ -25,9 +29,10 @@ export function ImportWatchedDialog() {
   const [result, setResult] = useState<SetWatchedByTvdbIdsResponse | null>(null)
   const mediaItems = useMemo(() => readTvdbImports(draft), [draft])
   const hasInvalidLines = useMemo(() => readInvalidLines(draft).length > 0, [draft])
-  const canImport = mediaItems.length > 0 && !hasInvalidLines && status !== 'importing'
+  const canImport = mediaItems.length > 0 && mediaItems.length <= maxImportItems && !hasInvalidLines && !pending
 
   const resetState = () => {
+    operation.current += 1
     setStatus('idle')
     setErrorMessage(null)
     setResult(null)
@@ -47,15 +52,18 @@ export function ImportWatchedDialog() {
       return
     }
 
+    const requestId = ++operation.current
     setStatus('importing')
     setErrorMessage(null)
     setResult(null)
 
     try {
       const nextResult = await setWatchedByTvdbIds(mediaItems)
+      if (requestId !== operation.current) return
       setResult(nextResult)
       setStatus('ready')
     } catch (error) {
+      if (requestId !== operation.current) return
       setErrorMessage(error instanceof Error ? error.message : 'Import failed.')
       setStatus('error')
     }
@@ -79,6 +87,8 @@ export function ImportWatchedDialog() {
           <DialogDescription>One title per line: a TheTVDB ID with an optional type, or a tab-separated row copied from a spreadsheet.</DialogDescription>
         </DialogHeader>
         <Textarea
+          aria-label="TheTVDB titles to import"
+          disabled={pending}
           className="max-h-64 min-h-48 resize-none overflow-y-auto rounded-lg border-white/[0.08] bg-black/30 font-mono text-[12.5px]"
           onChange={(event) => {
             setDraft(event.target.value)
@@ -88,16 +98,17 @@ export function ImportWatchedDialog() {
           spellCheck={false}
           value={draft}
         />
+        {mediaItems.length > maxImportItems ? <p role="alert" className="text-sm text-destructive">Import up to {maxImportItems} titles at a time.</p> : null}
         <ImportResult
           errorMessage={errorMessage}
           hasInvalidLines={hasInvalidLines}
           mediaItems={mediaItems}
           result={result}
-          status={status}
+          status={pending ? 'importing' : status}
         />
         <DialogFooter>
           <Button disabled={!canImport} onClick={() => void handleImport()}>
-            {status === 'importing' ? 'Importing…' : mediaItems.length ? `Mark ${mediaItems.length} watched` : 'Mark watched'}
+            {pending ? 'Importing…' : mediaItems.length ? `Mark ${mediaItems.length} watched` : 'Mark watched'}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -118,6 +129,8 @@ function ImportResult({
   result: SetWatchedByTvdbIdsResponse | null
   status: ImportStatus
 }) {
+  if (status === 'importing') return <p role="status" className="text-sm text-muted-foreground">Importing titles…</p>
+
   if (hasInvalidLines) {
     return <p className="text-[13px] text-destructive">Some lines are not TheTVDB IDs. Use a number, optionally followed by movie or tv.</p>
   }

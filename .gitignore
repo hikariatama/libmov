@@ -43,3 +43,6 @@ playwright-report/
 coverage/
 __pycache__/
 *.py[cod]
+
+# Local file-catalog metadata
+.room237-*

@@ -1,7 +1,7 @@
 {
   "name": "libmov",
   "private": true,
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Keyboard-first tracker for movies and series you want to watch and have watched.",
   "author": {
     "name": "Daniil Gazizullin",
@@ -28,7 +28,7 @@
     "@hugeicons/core-free-icons": "^4.1.1",
     "@hugeicons/react": "^1.1.6",
     "@tabler/icons-react": "^3.41.0",
-    "@tanstack/react-hotkeys": "https://registry.npmjs.org/@tanstack/react-hotkeys/-/react-hotkeys-0.9.1.tgz",
+    "@tanstack/react-hotkeys": "0.27.1",
     "@tanstack/react-virtual": "^3.13.23",
     "better-sqlite3": "^12.11.1",
     "class-variance-authority": "^0.7.1",

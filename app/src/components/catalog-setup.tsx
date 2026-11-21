@@ -9,7 +9,7 @@ import { Input } from './ui/input'
 
 const linkClass = 'rounded-sm text-foreground underline decoration-white/25 underline-offset-4 transition-colors hover:decoration-white/60 focus-visible:outline-2 focus-visible:outline-ring'
 
-export function CatalogSetup({ loading }: { loading: boolean }) {
+export function CatalogSetup({ loading, onLocalLibrary, onConnected }: { loading: boolean; onLocalLibrary: () => void; onConnected: () => void }) {
   const initialize = useAppStore((state) => state.initialize)
   const [apiKey, setApiKey] = useState('')
   const [pin, setPin] = useState('')
@@ -31,6 +31,7 @@ export function CatalogSetup({ loading }: { loading: boolean }) {
       setApiKey('')
       setPin('')
       await initialize()
+      onConnected()
     } catch {
       setError('Could not save your key. Try again.')
     } finally {
@@ -102,6 +103,7 @@ export function CatalogSetup({ loading }: { loading: boolean }) {
               </Button>
               <p className="mt-3 text-[12px] leading-5 text-muted-foreground" id="key-storage">Your key is encrypted and saved on this device.</p>
             </form>
+            <Button className="mt-3 w-full" disabled={pending} onClick={onLocalLibrary} variant="ghost">Open local library</Button>
           </section>
         )}
       </main>

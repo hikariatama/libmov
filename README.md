@@ -59,4 +59,4 @@ make build
 make build PLATFORM=mac ARCH=arm64 TARGET=dmg
 ```
 
-Artifacts are written to `app/release/`. See [project structure](project.md), [build and API notes](GOTCHAS.md) and [third-party licenses](THIRD_PARTY.md).
+Artifacts are written to `app/release/`. See [development and release rules](AGENTS.md) and [third-party licenses](THIRD_PARTY.md).

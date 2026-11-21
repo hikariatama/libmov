@@ -164,6 +164,7 @@ export interface SetWatchedByTvdbIdsRequest {
 }
 
 export interface SetWatchedByTvdbIdsResponse {
+  /** Resolved mediaType:mediaId keys; skipped inputs without a type use any:mediaId. */
   importedIds: string[]
   library: LibrarySnapshot
   skippedIds: string[]

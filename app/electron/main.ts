@@ -1,10 +1,11 @@
 import { app, BrowserWindow, safeStorage, shell } from 'electron'
-import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CatalogCredentialsStore } from './catalog-credentials'
 import { LibraryDatabase } from './database'
+import { migrateLegacyLibrary } from './library-migration'
+import { safeExternalUrl } from '../shared/external-url'
 import { registerIpcHandlers } from './ipc'
 import { TvdbClient } from './tvdb'
 import { tvdbApiKey } from './tvdb-config'
@@ -15,30 +16,6 @@ app.setName('libmov')
 
 if (process.env.LIBMOV_USER_DATA_DIR) {
   app.setPath('userData', process.env.LIBMOV_USER_DATA_DIR)
-}
-
-// The app shipped as "Fulcrum" before; carry its library over once so the rename keeps user data.
-function migrateLegacyLibrary(userDataPath: string): void {
-  const legacyDirectory = join(app.getPath('appData'), 'Fulcrum')
-  const databaseFile = 'library.sqlite'
-
-  if (process.env.LIBMOV_USER_DATA_DIR || existsSync(join(userDataPath, databaseFile))) {
-    return
-  }
-
-  if (!existsSync(join(legacyDirectory, databaseFile))) {
-    return
-  }
-
-  mkdirSync(userDataPath, { recursive: true })
-
-  for (const suffix of ['', '-wal', '-shm']) {
-    const source = join(legacyDirectory, `${databaseFile}${suffix}`)
-
-    if (existsSync(source)) {
-      copyFileSync(source, join(userDataPath, `${databaseFile}${suffix}`))
-    }
-  }
 }
 
 function createMainWindow(): BrowserWindow {
@@ -60,7 +37,8 @@ function createMainWindow(): BrowserWindow {
   })
 
   window.webContents.setWindowOpenHandler(({ url }) => {
-    void shell.openExternal(url)
+    const external = safeExternalUrl(url)
+    if (external) void shell.openExternal(external).catch(() => undefined)
     return { action: 'deny' }
   })
 
@@ -90,7 +68,9 @@ function createMainWindow(): BrowserWindow {
 }
 
 app.whenReady().then(async () => {
-  migrateLegacyLibrary(app.getPath('userData'))
+  if (!process.env.LIBMOV_USER_DATA_DIR) {
+    await migrateLegacyLibrary(join(app.getPath('appData'), 'Fulcrum'), app.getPath('userData'))
+  }
 
   const database = new LibraryDatabase(app.getPath('userData'))
   const credentialsStore = new CatalogCredentialsStore(app.getPath('userData'), safeStorage)

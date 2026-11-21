@@ -9,6 +9,7 @@ import { mediaKeyOf } from '../../../shared/media'
 import type { AppStore } from '../app-store'
 
 export interface LibrarySlice {
+  importPending: boolean
   createList: (name: string) => Promise<void>
   library: LibrarySnapshot
   setListMembership: (listId: string, media: MediaSummary, add: boolean) => Promise<void>
@@ -31,6 +32,7 @@ export const createLibrarySlice: StateCreator<
   [],
   LibrarySlice
 > = (set, get) => ({
+  importPending: false,
   createList: async (name) => {
     const library = await window.libmov.createList({ name })
     set({ library })
@@ -41,27 +43,32 @@ export const createLibrarySlice: StateCreator<
     set({ library })
   },
   setWatchedByTvdbIds: async (mediaItems) => {
-    const result: unknown = await window.libmov.setWatchedByTvdbIds({ mediaItems })
+    if (get().importPending) throw new Error('An import is already in progress.')
+    set({ importPending: true })
+    try {
+      const result: unknown = await window.libmov.setWatchedByTvdbIds({ mediaItems })
 
-    if (isSetWatchedByTvdbIdsResponse(result)) {
-      set({ library: result.library })
-      return result
-    }
-
-    if (isLibrarySnapshot(result)) {
-      set({ library: result })
-      const watchedMediaIds = new Set(result.recentlyWatched.map((media) => media.mediaId))
-      const pastedMediaIds = mediaItems.map((media) => media.mediaId)
-      const importedIds = pastedMediaIds.filter((mediaId) => watchedMediaIds.has(mediaId))
-
-      return {
-        importedIds,
-        library: result,
-        skippedIds: pastedMediaIds.filter((mediaId) => !importedIds.includes(mediaId)),
+      if (isSetWatchedByTvdbIdsResponse(result)) {
+        set({ library: result.library })
+        return result
       }
-    }
 
-    throw new Error('Import returned an invalid library snapshot.')
+      if (isLibrarySnapshot(result)) {
+        set({ library: result })
+        const importedIds = new Set<string>()
+        const skippedIds: string[] = []
+        for (const input of mediaItems) {
+          const matches = result.recentlyWatched.filter((media) => media.mediaId === input.mediaId && (!input.mediaType || input.mediaType === media.mediaType))
+          if (matches.length === 1) importedIds.add(mediaKeyOf(matches[0]!))
+          else skippedIds.push(`${input.mediaType ?? 'any'}:${input.mediaId}`)
+        }
+        return { importedIds: [...importedIds], library: result, skippedIds }
+      }
+
+      throw new Error('Import returned an invalid library snapshot.')
+    } finally {
+      set({ importPending: false })
+    }
   },
   setWatched: async (media, watched) => {
     const library = await window.libmov.setWatched({ media, watched })

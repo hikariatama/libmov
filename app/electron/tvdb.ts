@@ -1,3 +1,6 @@
+import { CatalogPager } from './catalog-pager'
+import { mediaKeyOf } from '../shared/media'
+import { safeExternalUrl } from '../shared/external-url'
 import { net } from 'electron'
 import type {
   CatalogBrowseRequest,
@@ -578,7 +581,7 @@ function mapTrailers(values: unknown): MediaTrailer[] {
   return readValues(values)
     .map((value) => {
       const name = readStringProperty(value, 'name')
-      const url = readStringProperty(value, 'url')
+      const url = safeExternalUrl(readStringProperty(value, 'url'))
 
       if (!name || !url) {
         return null
@@ -803,7 +806,15 @@ export class TvdbClient {
   private readonly apiKey: string
   private readonly pin?: string
   private readonly baseUrl = 'https://api4.thetvdb.com/v4'
-  private readonly browseChunkPromises = new Map<number, Promise<TvdbBrowseChunk>>()
+  private readonly catalogPager = new CatalogPager<MediaSummary>(async (page) => {
+    const chunk = await this.fetchBrowseChunk(page)
+    return {
+      hasMore: chunk.hasMore,
+      items: chunk.records.map((record) => toBrowseSummary(record)).filter((item): item is MediaSummary => Boolean(item && (item.artworkUrl || item.artworkThumbnailUrl))),
+    }
+  }, mediaKeyOf)
+  private movieEndPage = Infinity
+  private seriesEndPage = Infinity
   private token: string | null = null
   private tokenPromise: Promise<string> | null = null
 
@@ -874,6 +885,7 @@ export class TvdbClient {
     }
 
     const response = await net.fetch(url.toString(), {
+      signal: AbortSignal.timeout(15000),
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${token}`,
@@ -893,57 +905,16 @@ export class TvdbClient {
       throw new Error('TheTVDB key is unavailable.')
     }
 
-    const page = Math.max(1, Math.trunc(request.page))
-    const pageSize = Math.min(500, Math.max(1, Math.trunc(request.pageSize)))
-    const offset = (page - 1) * pageSize
-    const chunkSize = 1000
-    const chunkPage = Math.floor(offset / chunkSize)
-    const chunkOffset = offset % chunkSize
-    const chunk = await this.getBrowseChunk(chunkPage)
-    const pageItems: MediaSummary[] = []
-
-    for (const item of chunk.records.slice(chunkOffset)) {
-      const summary = toBrowseSummary(item)
-
-      if (!summary?.artworkUrl && !summary?.artworkThumbnailUrl) {
-        continue
-      }
-
-      pageItems.push(summary)
-
-      if (pageItems.length >= pageSize) {
-        break
-      }
-    }
-
-    return {
-      hasMore: chunkOffset + pageSize < chunk.records.length || chunk.hasMore,
-      items: pageItems,
-      page,
-    }
-  }
-
-  private async getBrowseChunk(page: number): Promise<TvdbBrowseChunk> {
-    const cached = this.browseChunkPromises.get(page)
-
-    if (cached) {
-      return cached
-    }
-
-    const promise = this.fetchBrowseChunk(page).catch((error: unknown) => {
-      this.browseChunkPromises.delete(page)
-      throw error
-    })
-
-    this.browseChunkPromises.set(page, promise)
-    return promise
+    return this.catalogPager.page(request.page, request.pageSize)
   }
 
   private async fetchBrowseChunk(page: number): Promise<TvdbBrowseChunk> {
     const [movies, series] = await Promise.all([
-      this.fetchJson<TvdbListResponse<TvdbMovieListRecord>>('/movies', { page }),
-      this.fetchJson<TvdbListResponse<TvdbSeriesListRecord>>('/series', { page }),
+      page > this.movieEndPage ? Promise.resolve({ data: [], links: { next: undefined } }) : this.fetchJson<TvdbListResponse<TvdbMovieListRecord>>('/movies', { page }),
+      page > this.seriesEndPage ? Promise.resolve({ data: [], links: { next: undefined } }) : this.fetchJson<TvdbListResponse<TvdbSeriesListRecord>>('/series', { page }),
     ])
+    if (!movies.links?.next) this.movieEndPage = Math.min(this.movieEndPage, page)
+    if (!series.links?.next) this.seriesEndPage = Math.min(this.seriesEndPage, page)
     const movieRecords = readListRecords<TvdbMovieListRecord>(movies.data).map((record) => ({
       mediaType: 'movie' as const,
       record,
